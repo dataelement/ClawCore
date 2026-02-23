@@ -23,7 +23,7 @@ import {
   saveIdentity,
   completeBootstrap,
 } from "../agent/soul.js";
-import { readSkillContent } from "../skills/loader.js";
+import { readSkillContent, writeSkill, appendSkillLog } from "../skills/loader.js";
 
 const execAsync = promisify(execCb);
 
@@ -83,6 +83,20 @@ export async function executeTool(params: {
         return await handleMemoryIndex(workspaceDir);
       case "read_skill":
         return await readSkillContent(args.skill_path as string);
+      case "create_skill":
+        return await handleCreateSkill(
+          args.skill_name as string,
+          args.content as string,
+          args.summary as string,
+          workspaceDir,
+        );
+      case "update_skill":
+        return await handleUpdateSkill(
+          args.skill_name as string,
+          args.content as string,
+          args.summary as string,
+          workspaceDir,
+        );
       case "exec":
         return await handleExec(
           args.command as string,
@@ -258,6 +272,36 @@ async function assertInsideWorkspace(
 }
 
 // ── Exec safety ──────────────────────────────────────────────
+
+async function handleCreateSkill(
+  skillName: string,
+  content: string,
+  summary: string,
+  workspaceDir: string,
+): Promise<string> {
+  const { skillPath, isNew } = await writeSkill({ workspaceDir, skillName, content });
+  if (!isNew) {
+    return `Error: Skill '${skillName}' already exists. Use update_skill to modify it.`;
+  }
+  await appendSkillLog({ workspaceDir, action: "created", skillName, summary });
+  return `Skill created: ${skillName} (logged to SKILL_LOG.md)`;
+}
+
+async function handleUpdateSkill(
+  skillName: string,
+  content: string,
+  summary: string,
+  workspaceDir: string,
+): Promise<string> {
+  const { skillPath, isNew } = await writeSkill({ workspaceDir, skillName, content });
+  if (isNew) {
+    // Still works — just note it was new
+    await appendSkillLog({ workspaceDir, action: "created", skillName, summary });
+    return `Skill '${skillName}' did not exist, created as new (logged to SKILL_LOG.md)`;
+  }
+  await appendSkillLog({ workspaceDir, action: "updated", skillName, summary });
+  return `Skill updated: ${skillName} (logged to SKILL_LOG.md)`;
+}
 
 /** Commands that are always safe to run */
 const EXEC_WHITELIST = new Set([

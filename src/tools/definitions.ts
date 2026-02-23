@@ -236,6 +236,60 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     type: "function",
     function: {
+      name: "create_skill",
+      description:
+        "Create a new skill. Provide the skill name and complete SKILL.md content (with YAML frontmatter). " +
+        "This creates a skills/<name>/SKILL.md file and logs the action to SKILL_LOG.md. " +
+        "Use this to accumulate capabilities over time — every useful pattern you learn can become a skill.",
+      parameters: {
+        type: "object",
+        properties: {
+          skill_name: {
+            type: "string",
+            description: "Short kebab-case name (e.g. 'pdf-summary', 'code-review')",
+          },
+          content: {
+            type: "string",
+            description: "Complete SKILL.md content, including YAML frontmatter with name and description",
+          },
+          summary: {
+            type: "string",
+            description: "One-line summary of this skill for the changelog",
+          },
+        },
+        required: ["skill_name", "content", "summary"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "update_skill",
+      description:
+        "Update an existing skill's SKILL.md content. Logs the modification to SKILL_LOG.md.",
+      parameters: {
+        type: "object",
+        properties: {
+          skill_name: {
+            type: "string",
+            description: "Name of the skill folder to update",
+          },
+          content: {
+            type: "string",
+            description: "Updated SKILL.md content",
+          },
+          summary: {
+            type: "string",
+            description: "One-line summary of what changed for the changelog",
+          },
+        },
+        required: ["skill_name", "content", "summary"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "exec",
       description:
         "Execute a shell command. Use responsibly — prefer file tools for reading/writing. " +

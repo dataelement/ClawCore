@@ -76,6 +76,59 @@ export async function readSkillContent(skillPath: string): Promise<string> {
   return fs.readFile(skillPath, "utf-8");
 }
 
+/** Write or create a skill — creates the skill folder and SKILL.md */
+export async function writeSkill(params: {
+  workspaceDir: string;
+  skillName: string;
+  content: string;
+}): Promise<{ skillPath: string; isNew: boolean }> {
+  const { workspaceDir, skillName, content } = params;
+  const skillDir = path.join(resolveSkillsDir(workspaceDir), skillName);
+  const skillMdPath = path.join(skillDir, "SKILL.md");
+
+  let isNew = true;
+  try {
+    await fs.access(skillMdPath);
+    isNew = false;
+  } catch {
+    // New skill
+  }
+
+  await fs.mkdir(skillDir, { recursive: true });
+  await fs.writeFile(skillMdPath, content, "utf-8");
+  return { skillPath: skillMdPath, isNew };
+}
+
+/** Append an entry to SKILL_LOG.md */
+export async function appendSkillLog(params: {
+  workspaceDir: string;
+  action: "created" | "updated";
+  skillName: string;
+  summary: string;
+}): Promise<void> {
+  const logPath = path.join(resolveSkillsDir(params.workspaceDir), "SKILL_LOG.md");
+  const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+  let existing = "";
+  try {
+    existing = await fs.readFile(logPath, "utf-8");
+  } catch {
+    existing = "# Skill Changelog\n\nAll skill creation and modification records.\n\n";
+  }
+
+  const emoji = params.action === "created" ? "🆕" : "✏️";
+  const entry = `| ${now} | ${emoji} ${params.action} | **${params.skillName}** | ${params.summary} |\n`;
+
+  // Insert table header if not present
+  if (!existing.includes("| Time |")) {
+    existing += "| Time | Action | Skill | Summary |\n";
+    existing += "|------|--------|-------|---------|\n";
+  }
+
+  existing += entry;
+  await fs.writeFile(logPath, existing, "utf-8");
+}
+
 /** Ensure skills directory exists */
 export async function ensureSkillsDir(workspaceDir: string): Promise<void> {
   await fs.mkdir(resolveSkillsDir(workspaceDir), { recursive: true });

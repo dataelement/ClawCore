@@ -42,7 +42,7 @@ Most AI assistants with file access make people nervous — *what if it deletes 
 | 🧬 **Soul System** | AI develops its own personality via `SOUL.md` — not a chatbot, a character |
 | 🪪 **Identity Bootstrap** | First-run "awakening" ritual where the AI discovers who it is |
 | 🧠 **Index-based Memory** | `MEMORY_INDEX.md` as table of contents — load specific files on demand |
-| 🔧 **Skill System** | Extensible skills via `SKILL.md` with progressive disclosure |
+| 🔧 **Skill System** | Extensible skills via `SKILL.md` with progressive disclosure — **AI can create and evolve skills over time** |
 | 📁 **User Vault** | Read-only folder for your personal files — AI can never modify originals |
 | 🛠️ **Task Workbench** | Per-task folders with `_TASK.md` lifecycle management and archiving |
 | 💓 **Heartbeat Scan** | Periodic autonomous scans — AI creates 🤖-prefixed tasks when it spots something |
@@ -168,7 +168,8 @@ ClawCore creates a visible workspace on your Desktop — no hidden folders:
 │   ├── 🤖_2026-02-23_资料整理/  # Agent-initiated task
 │   └── _archive/           # Archived completed tasks
 │
-└── skills/                 # 🔧 Skill definitions
+└── skills/                 # 🔧 Skill definitions (AI can create & modify)
+    ├── SKILL_LOG.md        # Changelog of all skill changes
     └── my-skill/
         └── SKILL.md
 ```
@@ -181,7 +182,7 @@ ClawCore creates a visible workspace on your Desktop — no hidden folders:
 | `user/` | **Read-only** | Your files — AI copies to workbench before editing |
 | `memory/` | Read + Write | AI's persistent memory |
 | `workbench/` | Read + Write | Per-task work area |
-| `skills/` | Read-only | Skill definitions |
+| `skills/` | Read + Write | AI can create and evolve skills, logged to `SKILL_LOG.md` |
 
 ### 🛡️ Security Model
 
@@ -258,6 +259,7 @@ CLI (index.ts)
 | `archive_task` | Move task to archive |
 | `memory_read` / `memory_write` / `memory_index` | Memory operations |
 | `read_skill` | Load full skill instructions |
+| `create_skill` / `update_skill` | Create or modify skills (auto-logged to `SKILL_LOG.md`) |
 | `update_soul` / `update_identity` | Modify personality files |
 | `complete_bootstrap` | Finish first-run setup |
 | `exec` | Run shell commands |
