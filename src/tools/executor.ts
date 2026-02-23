@@ -86,7 +86,7 @@ export async function executeTool(params: {
       case "exec":
         return await handleExec(
           args.command as string,
-            args.cwd as string | undefined,
+          args.cwd as string | undefined,
           workspaceDir,
         );
       case "update_soul":
@@ -105,11 +105,8 @@ export async function executeTool(params: {
 }
 
 async function handleReadFile(filePath: string, workspaceDir: string): Promise<string> {
-  const resolved = path.resolve(workspaceDir, filePath);
-  // Ensure the file is within the workspace
-  if (!resolved.startsWith(workspaceDir)) {
-    return "Error: Access denied — path is outside workspace.";
-  }
+  const { resolved, error } = await assertInsideWorkspace(filePath, workspaceDir);
+  if (error) return `Error: ${error}`;
   return parseDocument(resolved);
 }
 
@@ -118,11 +115,8 @@ async function handleWriteFile(
   content: string,
   workspaceDir: string,
 ): Promise<string> {
-  const resolved = path.resolve(workspaceDir, filePath);
-
-  if (!resolved.startsWith(workspaceDir)) {
-    return "Error: Access denied — path is outside workspace.";
-  }
+  const { resolved, error } = await assertInsideWorkspace(filePath, workspaceDir);
+  if (error) return `Error: ${error}`;
 
   if (isUserPath(resolved, workspaceDir)) {
     return "Error: Cannot write to user/ folder — it is read-only. Use copy_to_workbench to copy files, then edit copies in workbench/.";
@@ -134,10 +128,8 @@ async function handleWriteFile(
 }
 
 async function handleListDir(dirPath: string, workspaceDir: string): Promise<string> {
-  const resolved = path.resolve(workspaceDir, dirPath);
-  if (!resolved.startsWith(workspaceDir)) {
-    return "Error: Access denied — path is outside workspace.";
-  }
+  const { resolved, error } = await assertInsideWorkspace(dirPath, workspaceDir);
+  if (error) return `Error: ${error}`;
 
   try {
     const entries = await fs.readdir(resolved, { withFileTypes: true });
@@ -233,6 +225,112 @@ async function handleMemoryIndex(workspaceDir: string): Promise<string> {
   return index || "(Memory index is empty)";
 }
 
+/**
+ * Resolve a path and verify it is truly inside the workspace,
+ * following symlinks to prevent symlink-based path traversal.
+ */
+async function assertInsideWorkspace(
+  filePath: string,
+  workspaceDir: string,
+): Promise<{ resolved: string; error?: string }> {
+  const resolved = path.resolve(workspaceDir, filePath);
+
+  // Basic prefix check
+  if (!resolved.startsWith(workspaceDir)) {
+    return { resolved, error: "Access denied — path is outside workspace." };
+  }
+
+  // Follow symlinks to get the real path (prevents symlink escape)
+  try {
+    const realPath = await fs.realpath(resolved);
+    const realWorkspace = await fs.realpath(workspaceDir);
+    if (!realPath.startsWith(realWorkspace)) {
+      return {
+        resolved,
+        error: "Access denied — symlink points outside workspace.",
+      };
+    }
+  } catch {
+    // File doesn't exist yet (e.g. write_file creating new file) — prefix check is sufficient
+  }
+
+  return { resolved };
+}
+
+// ── Exec safety ──────────────────────────────────────────────
+
+/** Commands that are always safe to run */
+const EXEC_WHITELIST = new Set([
+  "ls", "cat", "head", "tail", "wc", "grep", "find", "echo",
+  "date", "pwd", "which", "file", "du", "df", "env", "printenv",
+  "sort", "uniq", "diff", "tr", "cut", "awk", "sed",
+  "open",   // macOS: open files/folders in Finder
+  "start",  // Windows: open files/folders
+  "xdg-open", // Linux: open files/folders
+]);
+
+/** Patterns that are always blocked */
+const EXEC_BLOCKLIST = [
+  /\brm\b/i,
+  /\bmkfs\b/i,
+  /\bdd\b\s/i,
+  /\bcurl\b/i,
+  /\bwget\b/i,
+  /\bssh\b/i,
+  /\bscp\b/i,
+  /\brsync\b/i,
+  /\bnc\b/i,
+  /\bchmod\b/i,
+  /\bchown\b/i,
+  /\bsudo\b/i,
+  /\bsu\b\s/i,
+  /\bkill\b/i,
+  /\bpkill\b/i,
+  /\bmv\b\s+\//i,   // mv with absolute dest
+  />\s*\//,          // redirect to absolute path
+  /\|\s*tee\s+\//,   // pipe to absolute path
+];
+
+function getFirstCommand(command: string): string {
+  // Handle env VAR=val cmd, sudo cmd, etc.
+  const trimmed = command.trim();
+  const parts = trimmed.split(/\s+/);
+  // Skip env-like prefixes
+  let i = 0;
+  while (i < parts.length && parts[i].includes("=")) i++;
+  return parts[i] ?? "";
+}
+
+function isCommandSafe(command: string): "allow" | "block" | "confirm" {
+  // Check blocklist first
+  for (const pattern of EXEC_BLOCKLIST) {
+    if (pattern.test(command)) return "block";
+  }
+
+  // Check whitelist
+  const firstCmd = path.basename(getFirstCommand(command));
+  if (EXEC_WHITELIST.has(firstCmd)) return "allow";
+
+  // Unknown command — needs user confirmation
+  return "confirm";
+}
+
+/** readline for user confirmation (lazy-loaded) */
+import readline from "node:readline";
+
+async function askUserConfirmation(command: string): Promise<boolean> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(
+      `\n⚠️  AI wants to run: ${command}\n   Allow? (y/N): `,
+      (answer) => {
+        rl.close();
+        resolve(answer.trim().toLowerCase() === "y");
+      },
+    );
+  });
+}
+
 async function handleExec(
   command: string,
   cwd: string | undefined,
@@ -241,6 +339,27 @@ async function handleExec(
   const resolvedCwd = cwd
     ? path.resolve(workspaceDir, cwd)
     : resolveWorkbenchDir(workspaceDir);
+
+  // Ensure cwd is inside workspace
+  const realCwd = await fs.realpath(resolvedCwd).catch(() => resolvedCwd);
+  const realWorkspace = await fs.realpath(workspaceDir).catch(() => workspaceDir);
+  if (!realCwd.startsWith(realWorkspace)) {
+    return "Error: exec cwd must be inside workspace.";
+  }
+
+  // Safety check
+  const safety = isCommandSafe(command);
+
+  if (safety === "block") {
+    return `Error: Command blocked for safety — "${command}" contains a dangerous operation. If you really need this, ask the user to run it manually.`;
+  }
+
+  if (safety === "confirm") {
+    const allowed = await askUserConfirmation(command);
+    if (!allowed) {
+      return "Command rejected by user.";
+    }
+  }
 
   try {
     const { stdout, stderr } = await execAsync(command, {

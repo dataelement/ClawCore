@@ -183,6 +183,20 @@ ClawCore creates a visible workspace on your Desktop — no hidden folders:
 | `workbench/` | Read + Write | Per-task work area |
 | `skills/` | Read-only | Skill definitions |
 
+### 🛡️ Security Model
+
+ClawCore enforces safety at the code level, not by trusting the AI to behave:
+
+**File Access** — All file operations go through `assertInsideWorkspace()`, which resolves symlinks before checking paths. This prevents a classic attack: if someone creates a shortcut (symlink) inside the workspace that points to `/Users/you/.ssh/`, the AI would see it as "inside the workspace" — but ClawCore follows the link first and catches that it actually points outside.
+
+**Shell Commands** — The `exec` tool uses three layers of protection:
+
+| Layer | What it does | Example |
+|-------|-------------|---------|
+| ✅ **Whitelist** | Safe commands run immediately | `ls`, `cat`, `grep`, `wc`, `open` |
+| 🚫 **Blocklist** | Dangerous commands are blocked outright | `rm`, `curl`, `wget`, `sudo`, `ssh`, `chmod` |
+| ⚠️ **Confirmation** | Unknown commands prompt you to approve | `python3 script.py` → "Allow? (y/N)" |
+
 ## 🔧 Adding Skills
 
 Create a folder in `~/Desktop/ClawCore/skills/` with a `SKILL.md`:
