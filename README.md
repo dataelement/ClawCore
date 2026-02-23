@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.jpg" alt="ClawCore Banner" width="100%" />
+  <img src="assets/banner.jpg?v=2" alt="ClawCore Banner" width="100%" />
 </p>
 
 # ClawCore 🦐
