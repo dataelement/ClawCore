@@ -6,9 +6,34 @@
 
 > A core version of [OpenClaw](https://github.com/openclaw/openclaw) — an AI assistant with a soul.
 
+[English](README.md) | [中文](README_CN.md)
+
 ClawCore extracts the soul of OpenClaw into a minimal, self-contained personal AI assistant. It keeps the personality system that makes AI feel alive, while stripping away the infrastructure complexity.
 
-**What makes it different:** Your AI develops its own personality, remembers things across sessions, organizes work into task folders, and periodically scans your files to proactively offer help — all without a database or cloud service.
+## 🎯 Why ClawCore?
+
+OpenClaw is powerful — but it's also complex. ClawCore asks: **what if we keep only the soul?**
+
+### What's Different from OpenClaw
+
+| ⚡ ClawCore | 🦞 OpenClaw |
+|------------|------------|
+| **Index-based memory** — a simple `MEMORY_INDEX.md` file as table of contents, no vector DB | Hybrid vector search with embedding models and temporal decay |
+| **Lightweight heartbeat** — simple `setInterval` timer with busy-guard | Full cron system with sub-agents and complex scheduling |
+| **Separate human & AI folders** — your files (`user/`) are isolated and read-only | Shared workspace with broader access |
+| **Task workbench** — every task gets its own folder with lifecycle tracking | No explicit task-folder concept |
+| **File safety by design** — AI can never modify your originals, only copies | Broader file system access |
+| **Runs on your daily computer** — no need for a dedicated machine | Designed for always-on server deployment |
+
+### 🔒 Safe for Your Personal Machine
+
+Most AI assistants with file access make people nervous — *what if it deletes something?* ClawCore solves this architecturally:
+
+- **`user/` is read-only.** The AI can read your PDFs, Word docs, and spreadsheets, but it physically cannot write to them.
+- **Processing happens in `workbench/`.** Need to edit a file? The AI copies it to a task folder first.
+- **Every action is scoped.** The permission model is enforced at the tool level — not by trust, but by code.
+
+**This means you can run ClawCore on the same laptop you use every day, without worry.** No VM, no dedicated server, no sandbox required.
 
 ## ✨ Features
 
@@ -16,16 +41,16 @@ ClawCore extracts the soul of OpenClaw into a minimal, self-contained personal A
 |---------|-------------|
 | 🧬 **Soul System** | AI develops its own personality via `SOUL.md` — not a chatbot, a character |
 | 🪪 **Identity Bootstrap** | First-run "awakening" ritual where the AI discovers who it is |
-| 🧠 **Index-based Memory** | Simple file-based memory with `MEMORY_INDEX.md` as table of contents — no vector DB needed |
-| 🔧 **Skill System** | Extensible skills via `SKILL.md` files with progressive disclosure |
-| 📁 **User Vault** | Read-only folder for your personal files — AI can read but never modify originals |
-| 🛠️ **Task Workbench** | Per-task workspace folders with lifecycle management and archiving |
-| 💓 **Heartbeat Scan** | Periodic autonomous scans — AI proactively creates tasks when it spots something |
+| 🧠 **Index-based Memory** | `MEMORY_INDEX.md` as table of contents — load specific files on demand |
+| 🔧 **Skill System** | Extensible skills via `SKILL.md` with progressive disclosure |
+| 📁 **User Vault** | Read-only folder for your personal files — AI can never modify originals |
+| 🛠️ **Task Workbench** | Per-task folders with `_TASK.md` lifecycle management and archiving |
+| 💓 **Heartbeat Scan** | Periodic autonomous scans — AI creates 🤖-prefixed tasks when it spots something |
 
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/user/ClawCore.git
+git clone https://github.com/dataelement/ClawCore.git
 cd ClawCore
 npm install
 npm run dev
@@ -115,7 +140,7 @@ Edit `~/Desktop/ClawCore/config.json`:
 
 ## 📂 Workspace Structure
 
-ClawCore creates a visible workspace on your Desktop:
+ClawCore creates a visible workspace on your Desktop — no hidden folders:
 
 ```
 ~/Desktop/ClawCore/
@@ -225,7 +250,7 @@ CLI (index.ts)
 
 ## 🤝 Acknowledgments
 
-ClawCore is inspired by [OpenClaw](https://github.com/openclaw/openclaw) and its vision of AI assistants with genuine personality. We extracted the soul and made it tiny.
+ClawCore is inspired by [OpenClaw](https://github.com/openclaw/openclaw) and its vision of AI assistants with genuine personality. We extracted the soul and made it core.
 
 ## 📜 License
 
