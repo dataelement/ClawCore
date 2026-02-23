@@ -2,6 +2,21 @@
 
 Thank you for your interest in contributing to ClawCore! This document provides guidelines to make the contribution process smooth.
 
+## 🙋 Not a Developer? You Can Still Contribute!
+
+You don't need to write code to make ClawCore better. **If you have an idea for a feature, describe it in natural language — the maintainer will implement it for you.**
+
+How to contribute a feature idea:
+
+1. Go to [GitHub Issues](https://github.com/dataelement/ClawCore/issues) and create a new issue
+2. Add the label **`💡feature-idea`** to your issue
+3. Think of yourself as a **product manager** — describe your idea as clearly and completely as possible:
+   - What problem does it solve?
+   - How should it work from the user's perspective?
+   - Any edge cases or special scenarios?
+
+The more detailed your description, the better the result. Plain language is all you need — no technical jargon required.
+
 ## Getting Started
 
 1. **Fork** the repository
