@@ -6,7 +6,7 @@
 
 > OpenClaw 的核心精简版 —— 一个有灵魂的 AI 助手。
 
-[English](README.md) | [中文](README_CN.md)
+[English](README.md) | [中文](README_CN.md) | [日本語](README_JA.md) | [한국어](README_KO.md) | [Español](README_ES.md)
 
 ClawCore 从 [OpenClaw](https://github.com/openclaw/openclaw) 中提取了最核心的人格系统，打造成一个极简、自包含的个人 AI 助手。保留让 AI "活起来"的灵魂机制，去掉复杂的基础设施。
 
@@ -16,7 +16,7 @@ OpenClaw 很强大，但也很复杂。ClawCore 思考的是：**如果只保留
 
 ### 与 OpenClaw 的核心区别
 
-| ⚡ ClawCore | 🦞 OpenClaw |
+| 🦐 ClawCore | 🦞 OpenClaw |
 |------------|------------|
 | **索引式记忆** — 用 `MEMORY_INDEX.md` 做记忆目录，按需加载，无需向量数据库 | 混合向量搜索 + 嵌入模型 + 时间衰减 |
 | **轻量心跳** — 简单的 `setInterval` 定时器 + 忙碌保护 | 完整的 cron 系统 + 子 Agent + 复杂调度 |

@@ -6,7 +6,7 @@
 
 > A core version of [OpenClaw](https://github.com/openclaw/openclaw) — an AI assistant with a soul.
 
-[English](README.md) | [中文](README_CN.md)
+[English](README.md) | [中文](README_CN.md) | [日本語](README_JA.md) | [한국어](README_KO.md) | [Español](README_ES.md)
 
 ClawCore extracts the soul of OpenClaw into a minimal, self-contained personal AI assistant. It keeps the personality system that makes AI feel alive, while stripping away the infrastructure complexity.
 
@@ -16,7 +16,7 @@ OpenClaw is powerful — but it's also complex. ClawCore asks: **what if we keep
 
 ### What's Different from OpenClaw
 
-| ⚡ ClawCore | 🦞 OpenClaw |
+| 🦐 ClawCore | 🦞 OpenClaw |
 |------------|------------|
 | **Index-based memory** — a simple `MEMORY_INDEX.md` file as table of contents, no vector DB | Hybrid vector search with embedding models and temporal decay |
 | **Lightweight heartbeat** — simple `setInterval` timer with busy-guard | Full cron system with sub-agents and complex scheduling |
