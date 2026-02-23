@@ -264,6 +264,12 @@ CLI (index.ts)
 | `complete_bootstrap` | Finish first-run setup |
 | `exec` | Run shell commands |
 
+## 👥 Contributors
+
+<a href="https://github.com/dataelement/ClawCore/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=dataelement/ClawCore" />
+</a>
+
 ## 🤝 Acknowledgments
 
 ClawCore is inspired by [OpenClaw](https://github.com/openclaw/openclaw) and its vision of AI assistants with genuine personality. We extracted the soul and made it core.

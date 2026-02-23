@@ -264,6 +264,12 @@ CLI (index.ts)
 | `complete_bootstrap` | 完成首次觉醒 |
 | `exec` | 执行 shell 命令 |
 
+## 👥 贡献者
+
+<a href="https://github.com/dataelement/ClawCore/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=dataelement/ClawCore" />
+</a>
+
 ## 🤝 致谢
 
 ClawCore 的灵感来自 [OpenClaw](https://github.com/openclaw/openclaw) 及其"让 AI 拥有真正个性"的愿景。我们提取了它的灵魂，让它回归核心。
