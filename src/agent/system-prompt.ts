@@ -75,6 +75,13 @@ export async function buildSystemPrompt(workspaceDir: string): Promise<string> {
   if (userProfile) {
     sections.push("# User Profile");
     sections.push("");
+    sections.push(
+      "The user's profile is stored in `user/USER_PROFILE.md`. " +
+      "This is the single source of truth about the user. " +
+      "Do NOT create a separate user profile file in `memory/` — all user info belongs here. " +
+      "Since `user/` is read-only for you, ask the user to update their profile directly if needed.",
+    );
+    sections.push("");
     sections.push(userProfile);
     sections.push("");
   }
