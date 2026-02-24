@@ -99,10 +99,12 @@ async function main() {
         }
       },
       onHeartbeatStart: () => {
-        console.log(chalk.dim("\n💓 Heartbeat scan...\n"));
+        const ts = new Date().toLocaleString();
+        console.log(chalk.dim(`\n💓 Heartbeat scan [${ts}]...\n`));
       },
       onHeartbeatEnd: (result) => {
-        console.log(chalk.dim(`💓 ${result}\n`));
+        const ts = new Date().toLocaleString();
+        console.log(chalk.dim(`💓 [${ts}] ${result}\n`));
       },
     },
   });
