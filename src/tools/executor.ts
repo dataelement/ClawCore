@@ -363,12 +363,18 @@ function isCommandSafe(command: string): "allow" | "block" | "confirm" {
 import readline from "node:readline";
 
 async function askUserConfirmation(command: string): Promise<boolean> {
+  // Temporarily disable raw mode if active (from CliInput)
+  const wasRaw = process.stdin.isRaw;
+  if (wasRaw) process.stdin.setRawMode(false);
+
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise((resolve) => {
     rl.question(
       `\n⚠️  AI wants to run: ${command}\n   Allow? (y/N): `,
       (answer) => {
         rl.close();
+        // Restore raw mode
+        if (wasRaw) process.stdin.setRawMode(true);
         resolve(answer.trim().toLowerCase() === "y");
       },
     );

@@ -25,12 +25,13 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "openai": "^4.80.0",
-    "mammoth": "^1.8.0",
-    "pdf-parse": "^1.1.1",
-    "xlsx": "^0.18.5",
+    "chalk": "^5.4.1",
     "gray-matter": "^4.0.3",
-    "chalk": "^5.4.1"
+    "mammoth": "^1.8.0",
+    "openai": "^4.80.0",
+    "ora": "^8.2.0",
+    "pdf-parse": "^1.1.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
