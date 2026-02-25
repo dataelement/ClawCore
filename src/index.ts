@@ -4,9 +4,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import chalk from "chalk";
 import ora from "ora";
-import { marked } from "marked";
-// @ts-ignore — marked-terminal has no type declarations
-import TerminalRenderer from "marked-terminal";
 import { loadConfig, saveConfig, resolveWorkspaceDir } from "./config/config.js";
 import { createOpenAIProvider } from "./llm/provider.js";
 import { Agent } from "./agent/agent.js";
@@ -17,20 +14,20 @@ import readline from "node:readline";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_DIR = path.resolve(__dirname, "../templates");
 
-// Configure marked for terminal rendering
-marked.use({ renderer: new TerminalRenderer() as any });
-
-/** Render markdown content for terminal display */
+/** Simple terminal markdown renderer using chalk */
 function renderMarkdown(text: string): string {
-  try {
-    const rendered = marked.parse(text);
-    if (typeof rendered === "string") {
-      return rendered;
-    }
-    return text;
-  } catch {
-    return text;
-  }
+  return text
+    .replace(/^### (.+)$/gm, chalk.green.bold("   $1"))           // h3
+    .replace(/^## (.+)$/gm, chalk.green.bold("  $1"))              // h2
+    .replace(/^# (.+)$/gm, chalk.magenta.bold.underline("$1"))     // h1
+    .replace(/\*\*(.+?)\*\*/g, chalk.bold("$1"))                   // bold
+    .replace(/\*(.+?)\*/g, chalk.italic("$1"))                     // italic
+    .replace(/`([^`]+)`/g, chalk.yellow("$1"))                     // inline code
+    .replace(/^- /gm, chalk.dim("  • "))                           // list items
+    .replace(/^(\d+)\. /gm, chalk.dim("  $1. "))                   // numbered list
+    .replace(/^> (.+)$/gm, chalk.gray.italic("  │ $1"))            // blockquote
+    .replace(/^---$/gm, chalk.dim("─".repeat(40)))                 // hr
+    .replace(/^```\w*$/gm, chalk.dim("─".repeat(40)));             // code fence → hr
 }
 
 async function main() {

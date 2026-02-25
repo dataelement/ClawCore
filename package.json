@@ -28,8 +28,6 @@
     "chalk": "^5.4.1",
     "gray-matter": "^4.0.3",
     "mammoth": "^1.8.0",
-    "marked": "^17.0.3",
-    "marked-terminal": "^7.3.0",
     "openai": "^4.80.0",
     "ora": "^8.2.0",
     "pdf-parse": "^1.1.1",
