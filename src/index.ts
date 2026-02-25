@@ -1,22 +1,21 @@
 #!/usr/bin/env node
 
 import path from "node:path";
+import readline from "node:readline";
+import fs from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import chalk from "chalk";
-import ora from "ora";
 import { loadConfig, saveConfig, resolveWorkspaceDir } from "./config/config.js";
 import { createOpenAIProvider } from "./llm/provider.js";
 import { Agent } from "./agent/agent.js";
 import { initWorkspace } from "./workspace/init.js";
-import { CliInput } from "./cli/input.js";
-import readline from "node:readline";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_DIR = path.resolve(__dirname, "../templates");
 
-/** Simple terminal markdown renderer using chalk */
+/** Simple terminal markdown renderer */
 function renderMarkdown(text: string): string {
-  // 1. Extract fenced code blocks first (before inline code regex eats backticks)
+  // Extract fenced code blocks first
   const codeBlocks: string[] = [];
   let processed = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) => {
     const label = lang ? chalk.dim(`  [${lang}]`) : "";
@@ -27,7 +26,6 @@ function renderMarkdown(text: string): string {
     return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
   });
 
-  // 2. Apply inline formatting
   processed = processed
     .replace(/^### (.+)$/gm, (_m, s) => chalk.green.bold(`   ${s}`))
     .replace(/^## (.+)$/gm, (_m, s) => chalk.green.bold(`  ${s}`))
@@ -40,11 +38,9 @@ function renderMarkdown(text: string): string {
     .replace(/^> (.+)$/gm, (_m, s) => chalk.gray.italic(`  │ ${s}`))
     .replace(/^---$/gm, chalk.dim("─".repeat(40)));
 
-  // 3. Re-insert code blocks
   for (let i = 0; i < codeBlocks.length; i++) {
     processed = processed.replace(`__CODE_BLOCK_${i}__`, codeBlocks[i]);
   }
-
   return processed;
 }
 
@@ -53,10 +49,18 @@ async function main() {
   const workspaceArg = args.find((a) => a.startsWith("--workspace="))?.split("=")[1];
   const workspaceDir = resolveWorkspaceDir(workspaceArg);
 
+  // Debug: catch and log any unhandled errors that might silently kill the process
+  process.on("unhandledRejection", (err) => {
+    console.error(chalk.red("\n[unhandledRejection]"), err);
+  });
+  process.on("uncaughtException", (err) => {
+    console.error(chalk.red("\n[uncaughtException]"), err);
+  });
+
   console.log(chalk.cyan.bold("\n🦐 ClawCore") + chalk.dim(" — a core version of OpenClaw\n"));
   console.log(chalk.dim(`Workspace: ${workspaceDir}\n`));
 
-  // Initialize workspace (creates directories + seeds templates if first run)
+  // Initialize workspace
   await initWorkspace(workspaceDir, TEMPLATE_DIR);
 
   // Load config
@@ -69,7 +73,6 @@ async function main() {
     console.log(chalk.dim("  Option 1: export OPENAI_API_KEY=sk-..."));
     console.log(chalk.dim(`  Option 2: edit ${path.join(workspaceDir, "config.json")}\n`));
 
-    // Try env var
     const envKey = process.env.OPENAI_API_KEY
       ?? process.env.CLAWCORE_API_KEY
       ?? process.env.LLM_API_KEY;
@@ -78,7 +81,6 @@ async function main() {
       config = { ...config, llm: { ...config.llm, apiKey: envKey } };
       console.log(chalk.green("✓ API key found from environment variable.\n"));
     } else {
-      // Interactive setup (use standard readline for this)
       const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
       const ask = (q: string) => new Promise<string>((r) => rl.question(q, r));
 
@@ -88,12 +90,8 @@ async function main() {
         process.exit(1);
       }
 
-      const baseUrl = await ask(
-        chalk.cyan(`Base URL (default: ${config.llm.baseUrl}): `),
-      );
-      const model = await ask(
-        chalk.cyan(`Model (default: ${config.llm.model}): `),
-      );
+      const baseUrl = await ask(chalk.cyan(`Base URL (default: ${config.llm.baseUrl}): `));
+      const model = await ask(chalk.cyan(`Model (default: ${config.llm.model}): `));
 
       config = {
         ...config,
@@ -113,31 +111,27 @@ async function main() {
   // Create LLM provider
   const llm = createOpenAIProvider(config.llm);
 
-  // Spinner for loading states — must use stderr to avoid conflicting with readline on stdout
-  const spinner = ora({ spinner: "dots", color: "cyan", stream: process.stderr });
+  // Streaming state
   let streamingStarted = false;
 
-  // Create agent with callbacks
+  // Create agent
   const agent = new Agent({
     llm,
     workspaceDir,
     callbacks: {
       onAssistantText: (text) => {
-        spinner.stop();
         if (text.trim() === "HEARTBEAT_OK") return;
-
         if (streamingStarted) {
-          // Text was already streamed to terminal, just finish with newline
+          // Text was already streamed, just finish
           process.stdout.write("\n\n");
         } else {
-          // Non-streamed response (e.g. short tool-only reply): render with markdown
+          // Non-streamed response: render markdown
           const rendered = renderMarkdown(text);
-          process.stdout.write(chalk.green("🦐 ") + rendered + "\n");
+          console.log(chalk.green("\n🦐 ") + rendered);
         }
         streamingStarted = false;
       },
       onTextChunk: (chunk) => {
-        spinner.stop();
         if (!streamingStarted) {
           process.stdout.write(chalk.green("\n🦐 "));
           streamingStarted = true;
@@ -145,24 +139,19 @@ async function main() {
         process.stdout.write(chunk);
       },
       onToolCall: (name, args) => {
-        spinner.stop();
         console.log(
           chalk.dim(`  ⚙️  ${name}(${Object.entries(args).map(([k, v]) => `${k}=${JSON.stringify(v).slice(0, 60)}`).join(", ")})`),
         );
-        spinner.start("Thinking...");
       },
       onToolResult: (name, result) => {
-        spinner.stop();
         if (result.length > 200) {
           console.log(chalk.dim(`  ✓  ${name} → ${result.slice(0, 200)}...`));
         } else {
           console.log(chalk.dim(`  ✓  ${name} → ${result}`));
         }
-        spinner.start("Thinking...");
       },
       onHeartbeatStart: () => {
         const ts = new Date().toLocaleString();
-        spinner.stop();
         console.log(chalk.dim(`\n💓 Heartbeat scan [${ts}]...\n`));
       },
       onHeartbeatEnd: (result) => {
@@ -178,44 +167,109 @@ async function main() {
   console.log(chalk.dim(`Model: ${config.llm.model}`));
   console.log("");
   console.log(chalk.cyan("📖 Quick Guide:"));
-  console.log(chalk.dim("  • 输入 exit 或 quit 或 Ctrl+C 退出"));
+  console.log(chalk.dim("  • 输入 exit 或 quit 退出对话"));
   console.log(chalk.dim('  • 输入 """ 进入多行模式，再次输入 """ 发送'));
   console.log(chalk.dim("  • 拖拽文件到终端，自动复制到 user/ 文件夹"));
   console.log(chalk.dim("  • 在 skills/ 下添加 SKILL.md 可扩展 AI 的能力"));
   console.log(chalk.dim("\n" + "─".repeat(60)) + "\n");
 
-  // Create input handler
-  const input = new CliInput({
+  // Interactive chat loop — simple readline, proven to work
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
     prompt: chalk.cyan("You: "),
-    userDir: path.join(workspaceDir, "user"),
   });
 
-  input.on("message", async (text: string) => {
-    streamingStarted = false;
-    spinner.start("Thinking...");
-    try {
-      await agent.chat(text);
-    } catch (err) {
-      spinner.stop();
-      streamingStarted = false;
-      console.error(chalk.red(`\nError: ${err instanceof Error ? err.message : String(err)}\n`));
+  // Multiline state
+  let multilineMode = false;
+  let multilineBuffer: string[] = [];
+  const userDir = path.join(workspaceDir, "user");
+
+  rl.prompt();
+
+  rl.on("line", async (line) => {
+    // --- Multiline mode ---
+    if (multilineMode) {
+      if (line.trim() === '"""') {
+        multilineMode = false;
+        const text = multilineBuffer.join("\n").trim();
+        multilineBuffer = [];
+        if (text) {
+          await handleMessage(text);
+        }
+        rl.prompt();
+      } else {
+        multilineBuffer.push(line);
+        process.stdout.write(chalk.dim("... "));
+      }
+      return;
     }
-    input.showInputPrompt();
+
+    // --- Start multiline ---
+    if (line.trim() === '"""') {
+      multilineMode = true;
+      multilineBuffer = [];
+      console.log(chalk.dim('📝 Multiline mode — type """ on a new line to send'));
+      process.stdout.write(chalk.dim("... "));
+      return;
+    }
+
+    const input = line.trim();
+    if (!input) {
+      rl.prompt();
+      return;
+    }
+
+    // Exit
+    if (input.toLowerCase() === "exit" || input.toLowerCase() === "quit") {
+      console.log(chalk.dim("\nGoodbye! 🦐\n"));
+      agent.stop();
+      rl.close();
+      process.exit(0);
+    }
+
+    // File drag-and-drop detection
+    const cleanPath = input.replace(/^['"]|['"]$/g, "").trim();
+    if (cleanPath.startsWith("/") || cleanPath.startsWith("~")) {
+      if (!cleanPath.includes(" ") || cleanPath.includes("\\ ")) {
+        const resolved = cleanPath
+          .replace(/^~/, process.env.HOME ?? "")
+          .replace(/\\ /g, " ");
+        try {
+          const stat = await fs.stat(resolved);
+          if (stat.isFile()) {
+            const fileName = path.basename(resolved);
+            const dest = path.join(userDir, fileName);
+            await fs.copyFile(resolved, dest);
+            const sizeKb = (stat.size / 1024).toFixed(1);
+            console.log(chalk.green(`✓ Copied to user/${fileName} (${sizeKb} KB)`));
+            rl.prompt();
+            return;
+          }
+        } catch {
+          // Not a valid path, treat as message
+        }
+      }
+    }
+
+    await handleMessage(input);
+    rl.prompt();
   });
 
-  input.on("file", () => {
-    // File was already copied by CliInput
-  });
-
-  input.on("exit", () => {
-    spinner.stop();
-    console.log(chalk.dim("\nGoodbye! 🦐\n"));
+  rl.on("close", () => {
     agent.stop();
-    input.stop();
     process.exit(0);
   });
 
-  input.start();
+  async function handleMessage(text: string): Promise<void> {
+    streamingStarted = false;
+    console.log(chalk.dim("⏳ Thinking..."));
+    try {
+      await agent.chat(text);
+    } catch (err) {
+      console.error(chalk.red(`\nError: ${err instanceof Error ? err.message : String(err)}\n`));
+    }
+  }
 }
 
 main().catch((err) => {
