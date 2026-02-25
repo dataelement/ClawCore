@@ -113,8 +113,8 @@ async function main() {
   // Create LLM provider
   const llm = createOpenAIProvider(config.llm);
 
-  // Spinner for loading states
-  const spinner = ora({ spinner: "dots", color: "cyan" });
+  // Spinner for loading states — must use stderr to avoid conflicting with readline on stdout
+  const spinner = ora({ spinner: "dots", color: "cyan", stream: process.stderr });
   let streamingStarted = false;
 
   // Create agent with callbacks

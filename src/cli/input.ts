@@ -17,6 +17,7 @@ export class CliInput extends EventEmitter {
     private userDir: string;
     private multilineMode = false;
     private multilineBuffer: string[] = [];
+    private intentionalClose = false;
 
     constructor(params: { prompt: string; userDir: string }) {
         super();
@@ -39,12 +40,23 @@ export class CliInput extends EventEmitter {
         });
 
         this.rl.on("close", () => {
+            // readline can close spuriously (e.g. when ora clears lines).
+            // Only truly exit on Ctrl+C (SIGINT) or explicit exit/quit command.
+            // Recreate readline to keep accepting input.
+            if (!this.intentionalClose) {
+                this.rl = null;
+                this.start();
+            }
+        });
+
+        process.on("SIGINT", () => {
             this.emit("exit");
         });
     }
 
     /** Stop listening */
     stop(): void {
+        this.intentionalClose = true;
         this.rl?.close();
         this.rl = null;
     }
