@@ -111,9 +111,6 @@ async function main() {
   // Create LLM provider
   const llm = createOpenAIProvider(config.llm);
 
-  // Streaming state
-  let streamingStarted = false;
-
   // Create agent
   const agent = new Agent({
     llm,
@@ -121,22 +118,13 @@ async function main() {
     callbacks: {
       onAssistantText: (text) => {
         if (text.trim() === "HEARTBEAT_OK") return;
-        if (streamingStarted) {
-          // Text was already streamed, just finish
-          process.stdout.write("\n\n");
-        } else {
-          // Non-streamed response: render markdown
-          const rendered = renderMarkdown(text);
-          console.log(chalk.green("\n🦐 ") + rendered);
-        }
-        streamingStarted = false;
+        // Render complete response with markdown formatting
+        const rendered = renderMarkdown(text);
+        console.log(chalk.green("\n🦐 ") + rendered);
       },
-      onTextChunk: (chunk) => {
-        if (!streamingStarted) {
-          process.stdout.write(chalk.green("\n🦐 "));
-          streamingStarted = true;
-        }
-        process.stdout.write(chunk);
+      onTextChunk: () => {
+        // Streaming runs under the hood but we wait for the complete text
+        // to render markdown properly
       },
       onToolCall: (name, args) => {
         console.log(
@@ -262,7 +250,6 @@ async function main() {
   });
 
   async function handleMessage(text: string): Promise<void> {
-    streamingStarted = false;
     console.log(chalk.dim("⏳ Thinking..."));
     try {
       await agent.chat(text);
