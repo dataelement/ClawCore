@@ -17,17 +17,17 @@ const TEMPLATE_DIR = path.resolve(__dirname, "../templates");
 /** Simple terminal markdown renderer using chalk */
 function renderMarkdown(text: string): string {
   return text
-    .replace(/^### (.+)$/gm, chalk.green.bold("   $1"))           // h3
-    .replace(/^## (.+)$/gm, chalk.green.bold("  $1"))              // h2
-    .replace(/^# (.+)$/gm, chalk.magenta.bold.underline("$1"))     // h1
-    .replace(/\*\*(.+?)\*\*/g, chalk.bold("$1"))                   // bold
-    .replace(/\*(.+?)\*/g, chalk.italic("$1"))                     // italic
-    .replace(/`([^`]+)`/g, chalk.yellow("$1"))                     // inline code
-    .replace(/^- /gm, chalk.dim("  • "))                           // list items
-    .replace(/^(\d+)\. /gm, chalk.dim("  $1. "))                   // numbered list
-    .replace(/^> (.+)$/gm, chalk.gray.italic("  │ $1"))            // blockquote
-    .replace(/^---$/gm, chalk.dim("─".repeat(40)))                 // hr
-    .replace(/^```\w*$/gm, chalk.dim("─".repeat(40)));             // code fence → hr
+    .replace(/^### (.+)$/gm, (_m, s) => chalk.green.bold(`   ${s}`))
+    .replace(/^## (.+)$/gm, (_m, s) => chalk.green.bold(`  ${s}`))
+    .replace(/^# (.+)$/gm, (_m, s) => chalk.magenta.bold.underline(s))
+    .replace(/\*\*(.+?)\*\*/g, (_m, s) => chalk.bold(s))
+    .replace(/\*(.+?)\*/g, (_m, s) => chalk.italic(s))
+    .replace(/`([^`]+)`/g, (_m, s) => chalk.yellow(s))
+    .replace(/^- /gm, "  • ")
+    .replace(/^(\d+)\. /gm, (_m, n) => `  ${n}. `)
+    .replace(/^> (.+)$/gm, (_m, s) => chalk.gray.italic(`  │ ${s}`))
+    .replace(/^---$/gm, chalk.dim("─".repeat(40)))
+    .replace(/^```\w*$/gm, chalk.dim("─".repeat(40)));
 }
 
 async function main() {
