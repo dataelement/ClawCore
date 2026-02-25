@@ -16,18 +16,36 @@ const TEMPLATE_DIR = path.resolve(__dirname, "../templates");
 
 /** Simple terminal markdown renderer using chalk */
 function renderMarkdown(text: string): string {
-  return text
+  // 1. Extract fenced code blocks first (before inline code regex eats backticks)
+  const codeBlocks: string[] = [];
+  let processed = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) => {
+    const label = lang ? chalk.dim(`  [${lang}]`) : "";
+    const formatted = chalk.dim("─".repeat(40)) + label + "\n" +
+      chalk.yellow(code.trimEnd()) + "\n" +
+      chalk.dim("─".repeat(40));
+    codeBlocks.push(formatted);
+    return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+  });
+
+  // 2. Apply inline formatting
+  processed = processed
     .replace(/^### (.+)$/gm, (_m, s) => chalk.green.bold(`   ${s}`))
     .replace(/^## (.+)$/gm, (_m, s) => chalk.green.bold(`  ${s}`))
     .replace(/^# (.+)$/gm, (_m, s) => chalk.magenta.bold.underline(s))
     .replace(/\*\*(.+?)\*\*/g, (_m, s) => chalk.bold(s))
-    .replace(/\*(.+?)\*/g, (_m, s) => chalk.italic(s))
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, (_m, s) => chalk.italic(s))
     .replace(/`([^`]+)`/g, (_m, s) => chalk.yellow(s))
     .replace(/^- /gm, "  • ")
     .replace(/^(\d+)\. /gm, (_m, n) => `  ${n}. `)
     .replace(/^> (.+)$/gm, (_m, s) => chalk.gray.italic(`  │ ${s}`))
-    .replace(/^---$/gm, chalk.dim("─".repeat(40)))
-    .replace(/^```\w*$/gm, chalk.dim("─".repeat(40)));
+    .replace(/^---$/gm, chalk.dim("─".repeat(40)));
+
+  // 3. Re-insert code blocks
+  for (let i = 0; i < codeBlocks.length; i++) {
+    processed = processed.replace(`__CODE_BLOCK_${i}__`, codeBlocks[i]);
+  }
+
+  return processed;
 }
 
 async function main() {
@@ -198,13 +216,14 @@ async function main() {
     spinner.stop();
     console.log(chalk.dim("\nGoodbye! 🦐\n"));
     agent.stop();
+    input.stop();
+    clearInterval(keepAlive);
     process.exit(0);
   });
 
   // Keep the process alive — this interval prevents early exit
   // when stdin might momentarily have no active listeners
   const keepAlive = setInterval(() => { }, 1 << 30);
-  process.on("exit", () => clearInterval(keepAlive));
 
   input.start();
 }
