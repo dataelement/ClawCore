@@ -18,7 +18,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_DIR = path.resolve(__dirname, "../templates");
 
 // Configure marked for terminal rendering
-marked.use(TerminalRenderer() as any);
+marked.use({ renderer: new TerminalRenderer() as any });
 
 /** Render markdown content for terminal display */
 function renderMarkdown(text: string): string {
