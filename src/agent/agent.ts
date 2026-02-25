@@ -17,6 +17,7 @@ const MAX_TOOL_ROUNDS = 20;
 
 export interface AgentCallbacks {
   onAssistantText: (text: string) => void;
+  onTextChunk: (chunk: string) => void;
   onToolCall: (name: string, args: Record<string, unknown>) => void;
   onToolResult: (name: string, result: string) => void;
   onHeartbeatStart: () => void;
@@ -94,9 +95,12 @@ export class Agent {
   /** Run the agent loop: LLM call → tool calls → repeat until text response */
   private async runAgentLoop(): Promise<string> {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const response = await this.llm.chat({
+      const response = await this.llm.chatStream({
         messages: this.conversationHistory,
         tools: TOOL_DEFINITIONS,
+        onTextChunk: (chunk) => {
+          this.callbacks.onTextChunk(chunk);
+        },
       });
 
       // If there are tool calls, execute them

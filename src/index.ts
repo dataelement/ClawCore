@@ -4,6 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import chalk from "chalk";
 import ora from "ora";
+import { marked } from "marked";
+// @ts-ignore — marked-terminal has no type declarations
+import TerminalRenderer from "marked-terminal";
 import { loadConfig, saveConfig, resolveWorkspaceDir } from "./config/config.js";
 import { createOpenAIProvider } from "./llm/provider.js";
 import { Agent } from "./agent/agent.js";
@@ -13,6 +16,22 @@ import readline from "node:readline";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATE_DIR = path.resolve(__dirname, "../templates");
+
+// Configure marked for terminal rendering
+marked.use(TerminalRenderer() as any);
+
+/** Render markdown content for terminal display */
+function renderMarkdown(text: string): string {
+  try {
+    const rendered = marked.parse(text);
+    if (typeof rendered === "string") {
+      return rendered;
+    }
+    return text;
+  } catch {
+    return text;
+  }
+}
 
 async function main() {
   const args = process.argv.slice(2);
@@ -81,6 +100,7 @@ async function main() {
 
   // Spinner for loading states
   const spinner = ora({ spinner: "dots", color: "cyan" });
+  let streamingStarted = false;
 
   // Create agent with callbacks
   const agent = new Agent({
@@ -88,9 +108,30 @@ async function main() {
     workspaceDir,
     callbacks: {
       onAssistantText: (text) => {
+        // Called when streaming is complete — render markdown
         spinner.stop();
-        if (text.trim() === "HEARTBEAT_OK") return; // silent
-        console.log(chalk.green("\n🦐 ") + text + "\n");
+        if (text.trim() === "HEARTBEAT_OK") return;
+
+        if (streamingStarted) {
+          // We already streamed raw text, now re-render with markdown
+          // Clear the streamed output and replace with rendered version
+          process.stdout.write("\r\x1b[J"); // clear from cursor
+          process.stdout.write("\n");
+        }
+
+        // Render markdown for pretty display
+        const rendered = renderMarkdown(text);
+        process.stdout.write(chalk.green("🦐 ") + rendered + "\n");
+        streamingStarted = false;
+      },
+      onTextChunk: (chunk) => {
+        // Streaming: show raw text as it arrives
+        spinner.stop();
+        if (!streamingStarted) {
+          process.stdout.write(chalk.green("🦐 "));
+          streamingStarted = true;
+        }
+        process.stdout.write(chunk);
       },
       onToolCall: (name, args) => {
         spinner.stop();
@@ -128,7 +169,7 @@ async function main() {
   console.log(chalk.cyan("📖 Quick Guide:"));
   console.log(chalk.dim("  • 输入 exit 或 quit 或 Ctrl+C 退出"));
   console.log(chalk.dim("  • ⌥+Enter (Option+Enter) 换行，支持多行输入"));
-  console.log(chalk.dim("  • 输入 \"\"\" 进入多行模式，再次输入 \"\"\" 发送"));
+  console.log(chalk.dim('  • 输入 """ 进入多行模式，再次输入 """ 发送'));
   console.log(chalk.dim("  • 拖拽文件到终端，自动复制到 user/ 文件夹"));
   console.log(chalk.dim("  • 在 skills/ 下添加 SKILL.md 可扩展 AI 的能力"));
   console.log(chalk.dim("\n" + "─".repeat(60)) + "\n");
@@ -140,19 +181,20 @@ async function main() {
   });
 
   input.on("message", async (text: string) => {
+    streamingStarted = false;
     spinner.start("Thinking...");
     try {
       await agent.chat(text);
     } catch (err) {
       spinner.stop();
+      streamingStarted = false;
       console.error(chalk.red(`\nError: ${err instanceof Error ? err.message : String(err)}\n`));
     }
     input.showInputPrompt();
   });
 
   input.on("file", (_filePath: string) => {
-    // File was already copied by CliInput, just show prompt
-    input.showInputPrompt();
+    // File was already copied by CliInput
   });
 
   input.on("exit", () => {
@@ -161,6 +203,11 @@ async function main() {
     agent.stop();
     process.exit(0);
   });
+
+  // Keep the process alive — this interval prevents early exit
+  // when stdin might momentarily have no active listeners
+  const keepAlive = setInterval(() => { }, 1 << 30);
+  process.on("exit", () => clearInterval(keepAlive));
 
   input.start();
 }
