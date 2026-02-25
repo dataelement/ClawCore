@@ -1,26 +1,22 @@
 import { EventEmitter } from "node:events";
+import readline from "node:readline";
 import path from "node:path";
 import fs from "node:fs/promises";
 import chalk from "chalk";
 
 /**
- * Custom CLI input handler with:
- * - Option+Enter (⌥+Enter) for newline insertion
- * - `"""` toggle for multiline block mode
- * - File drag-and-drop detection (paths dropped into terminal)
+ * CLI input handler using readline (reliable, no raw mode issues).
+ * Supports:
+ * - `"""` multiline block mode
+ * - File drag-and-drop detection
  */
 
-export interface InputEvents {
-    message: [text: string];
-    file: [filePath: string];
-    exit: [];
-}
-
 export class CliInput extends EventEmitter {
-    private buffer: string = "";
-    private multilineMode: boolean = false;
+    private rl: readline.Interface | null = null;
     private promptStr: string;
     private userDir: string;
+    private multilineMode = false;
+    private multilineBuffer: string[] = [];
 
     constructor(params: { prompt: string; userDir: string }) {
         super();
@@ -30,166 +26,71 @@ export class CliInput extends EventEmitter {
 
     /** Start listening for input */
     start(): void {
-        process.stdin.setRawMode(true);
-        process.stdin.resume();
-        process.stdin.setEncoding("utf-8");
-        this.showPrompt();
+        this.rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+            prompt: this.promptStr,
+        });
 
-        process.stdin.on("data", (chunk: string) => {
-            this.handleData(chunk);
+        this.rl.prompt();
+
+        this.rl.on("line", (line: string) => {
+            this.handleLine(line);
+        });
+
+        this.rl.on("close", () => {
+            this.emit("exit");
         });
     }
 
     /** Stop listening */
     stop(): void {
-        process.stdin.setRawMode(false);
-        process.stdin.pause();
+        this.rl?.close();
+        this.rl = null;
     }
 
-    /** Temporarily disable raw mode (for sub-prompts like exec confirmation) */
-    pause(): void {
-        process.stdin.setRawMode(false);
+    /** Show the prompt again (called externally after processing) */
+    showInputPrompt(): void {
+        this.rl?.prompt();
     }
 
-    /** Re-enable raw mode after pause */
-    resume(): void {
-        process.stdin.setRawMode(true);
-    }
-
-    private showPrompt(): void {
+    private handleLine(line: string): void {
+        // --- Multiline mode ---
         if (this.multilineMode) {
-            process.stdout.write(chalk.dim("... "));
-        } else {
-            process.stdout.write(this.promptStr);
-        }
-    }
-
-    private handleData(chunk: string): void {
-        // Ctrl+C — exit
-        if (chunk === "\x03") {
-            process.stdout.write("\n");
-            this.emit("exit");
-            return;
-        }
-
-        // Ctrl+D — exit
-        if (chunk === "\x04") {
-            process.stdout.write("\n");
-            this.emit("exit");
-            return;
-        }
-
-        // Option+Enter (ESC followed by CR) — insert newline
-        if (chunk === "\x1b\r" || chunk === "\x1b\n") {
-            this.buffer += "\n";
-            process.stdout.write("\n");
-            process.stdout.write(chalk.dim("... "));
-            return;
-        }
-
-        // Shift+Enter in kitty terminal protocol — insert newline
-        if (chunk === "\x1b[13;2u") {
-            this.buffer += "\n";
-            process.stdout.write("\n");
-            process.stdout.write(chalk.dim("... "));
-            return;
-        }
-
-        // Enter (CR) — submit or continue multiline
-        if (chunk === "\r" || chunk === "\n") {
-            process.stdout.write("\n");
-
-            // Check for """ toggle
-            if (this.buffer.trim() === '"""') {
-                this.multilineMode = true;
-                this.buffer = "";
-                process.stdout.write(chalk.dim("📝 Multiline mode (enter \"\"\" to send)\n"));
-                this.showPrompt();
-                return;
-            }
-
-            // In multiline mode, """ on its own line sends the buffer
-            if (this.multilineMode && this.buffer.trimEnd().endsWith('"""')) {
+            if (line.trim() === '"""') {
+                // End multiline: send accumulated buffer
                 this.multilineMode = false;
-                const text = this.buffer.trimEnd().slice(0, -3).trimEnd();
-                this.buffer = "";
+                const text = this.multilineBuffer.join("\n").trim();
+                this.multilineBuffer = [];
                 if (text) {
                     this.processInput(text);
                 } else {
-                    this.showPrompt();
+                    this.rl?.prompt();
                 }
-                return;
-            }
-
-            // In multiline mode, Enter just adds a newline
-            if (this.multilineMode) {
-                this.buffer += "\n";
-                this.showPrompt();
-                return;
-            }
-
-            // Normal mode: submit
-            const text = this.buffer.trim();
-            this.buffer = "";
-            if (text) {
-                this.processInput(text);
             } else {
-                this.showPrompt();
+                this.multilineBuffer.push(line);
+                process.stdout.write(chalk.dim("... "));
             }
             return;
         }
 
-        // Backspace
-        if (chunk === "\x7f" || chunk === "\b") {
-            if (this.buffer.length > 0) {
-                const removed = this.buffer.slice(-1);
-                this.buffer = this.buffer.slice(0, -1);
-                // CJK and other wide characters take 2 terminal columns
-                if (this.isWideChar(removed)) {
-                    process.stdout.write("\b \b\b \b");
-                } else {
-                    process.stdout.write("\b \b");
-                }
-            }
+        // --- Start multiline mode ---
+        if (line.trim() === '"""') {
+            this.multilineMode = true;
+            this.multilineBuffer = [];
+            console.log(chalk.dim('📝 Multiline mode — type """ on a new line to send'));
+            process.stdout.write(chalk.dim("... "));
             return;
         }
 
-        // Ctrl+U — clear line
-        if (chunk === "\x15") {
-            process.stdout.clearLine(0);
-            process.stdout.cursorTo(0);
-            this.buffer = "";
-            this.showPrompt();
+        // --- Normal single-line input ---
+        const text = line.trim();
+        if (!text) {
+            this.rl?.prompt();
             return;
         }
 
-        // Escape alone — ignore (don't print)
-        if (chunk === "\x1b") {
-            return;
-        }
-
-        // Arrow keys and other escape sequences — ignore
-        if (chunk.startsWith("\x1b[")) {
-            return;
-        }
-
-        // Paste detection: if chunk contains multiple chars with newlines, handle as paste
-        if (chunk.length > 1 && chunk.includes("\n")) {
-            const lines = chunk.split("\n");
-            for (let i = 0; i < lines.length; i++) {
-                this.buffer += lines[i];
-                process.stdout.write(lines[i]);
-                if (i < lines.length - 1) {
-                    this.buffer += "\n";
-                    process.stdout.write("\n" + chalk.dim("... "));
-                }
-            }
-            return;
-        }
-
-        // Regular character(s)
-        this.buffer += chunk;
-        process.stdout.write(chunk);
+        this.processInput(text);
     }
 
     private processInput(text: string): void {
@@ -201,7 +102,7 @@ export class CliInput extends EventEmitter {
         }
 
         // Check if input looks like a file path (drag-and-drop detection)
-        const cleanPath = text.replace(/^['"]|['"]$/g, "").trim(); // strip quotes from drag
+        const cleanPath = text.replace(/^['"]|['"]$/g, "").trim();
         if (this.looksLikeFilePath(cleanPath)) {
             this.handleFileDrop(cleanPath);
             return;
@@ -212,17 +113,13 @@ export class CliInput extends EventEmitter {
     }
 
     private looksLikeFilePath(text: string): boolean {
-        // Must be a single "line" (no spaces that look like conversation)
         if (text.includes("\n")) return false;
-        // Must start with / or ~ (absolute path) and not contain common sentence patterns
         if (!text.startsWith("/") && !text.startsWith("~")) return false;
-        // Must have a file extension or end with /
         if (text.includes(" ") && !text.includes("\\ ")) return false;
         return true;
     }
 
     private async handleFileDrop(filePath: string): Promise<void> {
-        // Resolve ~ and escaped spaces
         const resolved = filePath
             .replace(/^~/, process.env.HOME ?? "")
             .replace(/\\ /g, " ");
@@ -230,19 +127,18 @@ export class CliInput extends EventEmitter {
         try {
             const stat = await fs.stat(resolved);
             if (!stat.isFile()) {
-                process.stdout.write(chalk.yellow("⚠️  Not a file: " + resolved + "\n"));
-                this.showPrompt();
+                console.log(chalk.yellow("⚠️  Not a file: " + resolved));
+                this.rl?.prompt();
                 return;
             }
 
             const fileName = path.basename(resolved);
             const dest = path.join(this.userDir, fileName);
 
-            // Check if file already exists
             try {
                 await fs.access(dest);
-                process.stdout.write(chalk.yellow(`⚠️  ${fileName} already exists in user/\n`));
-                this.showPrompt();
+                console.log(chalk.yellow(`⚠️  ${fileName} already exists in user/`));
+                this.rl?.prompt();
                 return;
             } catch {
                 // Doesn't exist, good
@@ -250,39 +146,11 @@ export class CliInput extends EventEmitter {
 
             await fs.copyFile(resolved, dest);
             const sizeKb = (stat.size / 1024).toFixed(1);
-            process.stdout.write(
-                chalk.green(`✓ Copied to user/${fileName} (${sizeKb} KB)\n`),
-            );
+            console.log(chalk.green(`✓ Copied to user/${fileName} (${sizeKb} KB)`));
             this.emit("file", dest);
         } catch {
-            // Not a valid path, treat as regular message
             this.emit("message", filePath);
         }
-        this.showPrompt();
-    }
-
-    /** Show the prompt again (called externally after processing) */
-    showInputPrompt(): void {
-        this.showPrompt();
-    }
-
-    /** Check if a character is full-width (CJK, emoji, etc.) */
-    private isWideChar(ch: string): boolean {
-        const code = ch.codePointAt(0) ?? 0;
-        return (
-            (code >= 0x1100 && code <= 0x115f) ||  // Hangul Jamo
-            (code >= 0x2e80 && code <= 0x303e) ||  // CJK Radicals
-            (code >= 0x3040 && code <= 0x33bf) ||  // Japanese
-            (code >= 0x3400 && code <= 0x4dbf) ||  // CJK Unified Extension A
-            (code >= 0x4e00 && code <= 0x9fff) ||  // CJK Unified
-            (code >= 0xa960 && code <= 0xa97c) ||  // Hangul Jamo Extended-A
-            (code >= 0xac00 && code <= 0xd7a3) ||  // Hangul Syllables
-            (code >= 0xf900 && code <= 0xfaff) ||  // CJK Compatibility
-            (code >= 0xfe30 && code <= 0xfe6b) ||  // CJK Compatibility Forms
-            (code >= 0xff01 && code <= 0xff60) ||  // Fullwidth Forms
-            (code >= 0xffe0 && code <= 0xffe6) ||  // Fullwidth Signs
-            (code >= 0x1f000 && code <= 0x1fbff) || // Emoji & Symbols
-            (code >= 0x20000 && code <= 0x2ffff)    // CJK Extension B+
-        );
+        this.rl?.prompt();
     }
 }

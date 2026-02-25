@@ -179,13 +179,12 @@ async function main() {
   console.log("");
   console.log(chalk.cyan("📖 Quick Guide:"));
   console.log(chalk.dim("  • 输入 exit 或 quit 或 Ctrl+C 退出"));
-  console.log(chalk.dim("  • ⌥+Enter (Option+Enter) 换行，支持多行输入"));
   console.log(chalk.dim('  • 输入 """ 进入多行模式，再次输入 """ 发送'));
   console.log(chalk.dim("  • 拖拽文件到终端，自动复制到 user/ 文件夹"));
   console.log(chalk.dim("  • 在 skills/ 下添加 SKILL.md 可扩展 AI 的能力"));
   console.log(chalk.dim("\n" + "─".repeat(60)) + "\n");
 
-  // Create custom input handler
+  // Create input handler
   const input = new CliInput({
     prompt: chalk.cyan("You: "),
     userDir: path.join(workspaceDir, "user"),
@@ -204,7 +203,7 @@ async function main() {
     input.showInputPrompt();
   });
 
-  input.on("file", (_filePath: string) => {
+  input.on("file", () => {
     // File was already copied by CliInput
   });
 
@@ -213,13 +212,8 @@ async function main() {
     console.log(chalk.dim("\nGoodbye! 🦐\n"));
     agent.stop();
     input.stop();
-    clearInterval(keepAlive);
     process.exit(0);
   });
-
-  // Keep the process alive — this interval prevents early exit
-  // when stdin might momentarily have no active listeners
-  const keepAlive = setInterval(() => { }, 1 << 30);
 
   input.start();
 }
