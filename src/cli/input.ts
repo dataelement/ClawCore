@@ -142,8 +142,14 @@ export class CliInput extends EventEmitter {
         // Backspace
         if (chunk === "\x7f" || chunk === "\b") {
             if (this.buffer.length > 0) {
+                const removed = this.buffer.slice(-1);
                 this.buffer = this.buffer.slice(0, -1);
-                process.stdout.write("\b \b");
+                // CJK and other wide characters take 2 terminal columns
+                if (this.isWideChar(removed)) {
+                    process.stdout.write("\b \b\b \b");
+                } else {
+                    process.stdout.write("\b \b");
+                }
             }
             return;
         }
@@ -258,5 +264,25 @@ export class CliInput extends EventEmitter {
     /** Show the prompt again (called externally after processing) */
     showInputPrompt(): void {
         this.showPrompt();
+    }
+
+    /** Check if a character is full-width (CJK, emoji, etc.) */
+    private isWideChar(ch: string): boolean {
+        const code = ch.codePointAt(0) ?? 0;
+        return (
+            (code >= 0x1100 && code <= 0x115f) ||  // Hangul Jamo
+            (code >= 0x2e80 && code <= 0x303e) ||  // CJK Radicals
+            (code >= 0x3040 && code <= 0x33bf) ||  // Japanese
+            (code >= 0x3400 && code <= 0x4dbf) ||  // CJK Unified Extension A
+            (code >= 0x4e00 && code <= 0x9fff) ||  // CJK Unified
+            (code >= 0xa960 && code <= 0xa97c) ||  // Hangul Jamo Extended-A
+            (code >= 0xac00 && code <= 0xd7a3) ||  // Hangul Syllables
+            (code >= 0xf900 && code <= 0xfaff) ||  // CJK Compatibility
+            (code >= 0xfe30 && code <= 0xfe6b) ||  // CJK Compatibility Forms
+            (code >= 0xff01 && code <= 0xff60) ||  // Fullwidth Forms
+            (code >= 0xffe0 && code <= 0xffe6) ||  // Fullwidth Signs
+            (code >= 0x1f000 && code <= 0x1fbff) || // Emoji & Symbols
+            (code >= 0x20000 && code <= 0x2ffff)    // CJK Extension B+
+        );
     }
 }

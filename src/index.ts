@@ -123,27 +123,23 @@ async function main() {
     workspaceDir,
     callbacks: {
       onAssistantText: (text) => {
-        // Called when streaming is complete — render markdown
         spinner.stop();
         if (text.trim() === "HEARTBEAT_OK") return;
 
         if (streamingStarted) {
-          // We already streamed raw text, now re-render with markdown
-          // Clear the streamed output and replace with rendered version
-          process.stdout.write("\r\x1b[J"); // clear from cursor
-          process.stdout.write("\n");
+          // Text was already streamed to terminal, just finish with newline
+          process.stdout.write("\n\n");
+        } else {
+          // Non-streamed response (e.g. short tool-only reply): render with markdown
+          const rendered = renderMarkdown(text);
+          process.stdout.write(chalk.green("🦐 ") + rendered + "\n");
         }
-
-        // Render markdown for pretty display
-        const rendered = renderMarkdown(text);
-        process.stdout.write(chalk.green("🦐 ") + rendered + "\n");
         streamingStarted = false;
       },
       onTextChunk: (chunk) => {
-        // Streaming: show raw text as it arrives
         spinner.stop();
         if (!streamingStarted) {
-          process.stdout.write(chalk.green("🦐 "));
+          process.stdout.write(chalk.green("\n🦐 "));
           streamingStarted = true;
         }
         process.stdout.write(chunk);
