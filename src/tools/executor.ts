@@ -305,12 +305,18 @@ async function handleUpdateSkill(
 
 /** Commands that are always safe to run */
 const EXEC_WHITELIST = new Set([
+  // Unix
   "ls", "cat", "head", "tail", "wc", "grep", "find", "echo",
   "date", "pwd", "which", "file", "du", "df", "env", "printenv",
   "sort", "uniq", "diff", "tr", "cut", "awk", "sed",
-  "open",   // macOS: open files/folders in Finder
-  "start",  // Windows: open files/folders
-  "xdg-open", // Linux: open files/folders
+  // Windows equivalents
+  "dir", "type", "where", "findstr", "more", "tree",
+  // Cross-platform openers
+  "open",      // macOS
+  "start",     // Windows
+  "xdg-open",  // Linux
+  // Node/npm
+  "node", "npm", "npx",
 ]);
 
 /** Patterns that are always blocked */
@@ -416,6 +422,7 @@ async function handleExec(
       cwd: resolvedCwd,
       timeout: 30_000,
       maxBuffer: 1024 * 1024,
+      shell: process.platform === "win32" ? "cmd.exe" : "/bin/sh",
     });
     const output = [
       stdout.trim() ? `stdout:\n${stdout.trim()}` : "",
