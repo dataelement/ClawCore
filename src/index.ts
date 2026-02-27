@@ -217,26 +217,26 @@ async function main() {
     }
 
     // File drag-and-drop detection
-    const cleanPath = input.replace(/^['"]|['"]$/g, "").trim();
+    // macOS Terminal pastes paths like: /path/to/file, '/path/to/file', /path/to/my\ file
+    const cleanPath = input
+      .replace(/^['"]|['"]$/g, "")   // strip surrounding quotes
+      .replace(/\\ /g, " ")           // unescape spaces
+      .trim();
     if (cleanPath.startsWith("/") || cleanPath.startsWith("~")) {
-      if (!cleanPath.includes(" ") || cleanPath.includes("\\ ")) {
-        const resolved = cleanPath
-          .replace(/^~/, process.env.HOME ?? "")
-          .replace(/\\ /g, " ");
-        try {
-          const stat = await fs.stat(resolved);
-          if (stat.isFile()) {
-            const fileName = path.basename(resolved);
-            const dest = path.join(userDir, fileName);
-            await fs.copyFile(resolved, dest);
-            const sizeKb = (stat.size / 1024).toFixed(1);
-            console.log(chalk.green(`✓ Copied to user/${fileName} (${sizeKb} KB)`));
-            rl.prompt();
-            return;
-          }
-        } catch {
-          // Not a valid path, treat as message
+      const resolved = cleanPath.replace(/^~/, process.env.HOME ?? "");
+      try {
+        const stat = await fs.stat(resolved);
+        if (stat.isFile()) {
+          const fileName = path.basename(resolved);
+          const dest = path.join(userDir, fileName);
+          await fs.copyFile(resolved, dest);
+          const sizeKb = (stat.size / 1024).toFixed(1);
+          console.log(chalk.green(`✓ Copied to user/${fileName} (${sizeKb} KB)`));
+          rl.prompt();
+          return;
         }
+      } catch {
+        // Not a valid path, treat as message
       }
     }
 
